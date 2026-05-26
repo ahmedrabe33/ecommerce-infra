@@ -9,15 +9,26 @@ resource "aws_eks_cluster" "main" {
     endpoint_public_access  = true
   }
 
+  access_config {
+    authentication_mode = "API_AND_CONFIG_MAP"
+  }
+
   enabled_cluster_log_types = [
-    "api", "audit", "authenticator", "controllerManager", "scheduler"
+    "api",
+    "audit",
+    "authenticator",
+    "controllerManager",
+    "scheduler"
   ]
 
   depends_on = [
     aws_iam_role_policy_attachment.cluster_policy,
     aws_iam_role_policy_attachment.cluster_vpc_policy,
   ]
-  tags = { Name = var.cluster_name }
+
+  tags = {
+    Name = var.cluster_name
+  }
 }
 
 data "tls_certificate" "cluster" {
@@ -28,18 +39,26 @@ resource "aws_iam_openid_connect_provider" "cluster" {
   client_id_list  = ["sts.amazonaws.com"]
   thumbprint_list = [data.tls_certificate.cluster.certificates[0].sha1_fingerprint]
   url             = aws_eks_cluster.main.identity[0].oidc[0].issuer
-  tags            = { Name = "${var.cluster_name}-oidc" }
+
+  tags = {
+    Name = "${var.cluster_name}-oidc"
+  }
 }
 
 resource "aws_iam_role" "cluster" {
   name = "${var.cluster_name}-cluster-role"
+
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [{
-      Effect    = "Allow"
-      Principal = { Service = "eks.amazonaws.com" }
-      Action    = "sts:AssumeRole"
-    }]
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Service = "eks.amazonaws.com"
+        }
+        Action = "sts:AssumeRole"
+      }
+    ]
   })
 }
 
@@ -55,13 +74,18 @@ resource "aws_iam_role_policy_attachment" "cluster_vpc_policy" {
 
 resource "aws_iam_role" "node_group" {
   name = "${var.cluster_name}-node-group-role"
+
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [{
-      Effect    = "Allow"
-      Principal = { Service = "ec2.amazonaws.com" }
-      Action    = "sts:AssumeRole"
-    }]
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        }
+        Action = "sts:AssumeRole"
+      }
+    ]
   })
 }
 
@@ -69,10 +93,12 @@ resource "aws_iam_role_policy_attachment" "node_worker" {
   role       = aws_iam_role.node_group.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
 }
+
 resource "aws_iam_role_policy_attachment" "node_cni" {
   role       = aws_iam_role.node_group.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
 }
+
 resource "aws_iam_role_policy_attachment" "node_ecr" {
   role       = aws_iam_role.node_group.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
@@ -93,7 +119,9 @@ resource "aws_eks_node_group" "baseline" {
     max_size     = var.baseline_node_max
   }
 
-  update_config { max_unavailable = 1 }
+  update_config {
+    max_unavailable = 1
+  }
 
   taint {
     key    = "node-role"
@@ -102,8 +130,8 @@ resource "aws_eks_node_group" "baseline" {
   }
 
   labels = {
-    "node-role"                   = "system"
-    "eks.amazonaws.com/nodegroup" = "baseline"
+    "node-role" = "system"
+    "workload"  = "baseline"
   }
 
   depends_on = [
@@ -111,7 +139,10 @@ resource "aws_eks_node_group" "baseline" {
     aws_iam_role_policy_attachment.node_cni,
     aws_iam_role_policy_attachment.node_ecr,
   ]
-  tags = { Name = "${var.cluster_name}-baseline-node" }
+
+  tags = {
+    Name = "${var.cluster_name}-baseline-node"
+  }
 }
 
 # Allow Karpenter-provisioned nodes to join the cluster
@@ -119,5 +150,8 @@ resource "aws_eks_access_entry" "karpenter_nodes" {
   cluster_name  = aws_eks_cluster.main.name
   principal_arn = "arn:aws:iam::${var.account_id}:role/${var.cluster_name}-karpenter-node-role"
   type          = "EC2_LINUX"
-  depends_on    = [aws_eks_cluster.main]
+
+  depends_on = [
+    aws_eks_cluster.main
+  ]
 }
