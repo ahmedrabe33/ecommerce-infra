@@ -1,0 +1,88 @@
+---
+# Installs Jenkins, Docker, Trivy, kubectl, kustomize, AWS CLI
+- name: Bootstrap Jenkins CI server
+  hosts: jenkins
+  become: true
+  vars:
+    trivy_version: "0.50.1"
+  tasks:
+    - name: Install system packages
+      apt:
+        name: [apt-transport-https, ca-certificates, curl, gnupg, git, unzip, jq, wget]
+        state: present
+        update_cache: true
+
+    - name: Install Java 17
+      apt:
+        name: openjdk-17-jdk
+        state: present
+        update_cache: true
+
+    - name: Add Jenkins apt key
+      get_url:
+        url: https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key
+        dest: /usr/share/keyrings/jenkins-keyring.asc
+
+    - name: Add Jenkins apt repo
+      apt_repository:
+        repo: "deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] https://pkg.jenkins.io/debian-stable binary/"
+
+    - name: Install Jenkins
+      apt:
+        name: jenkins
+        state: present
+        update_cache: true
+
+    - name: Start and enable Jenkins
+      systemd: { name: jenkins, enabled: true, state: started }
+
+    - name: Add Docker apt key
+      get_url:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        dest: /usr/share/keyrings/docker-archive-keyring.gpg
+
+    - name: Add Docker apt repo
+      apt_repository:
+        repo: "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu {{ ansible_lsb.codename }} stable"
+
+    - name: Install Docker
+      apt:
+        name: [docker-ce, docker-ce-cli, containerd.io]
+        state: present
+        update_cache: true
+
+    - name: Add jenkins user to docker group
+      user: { name: jenkins, groups: docker, append: true }
+
+    - name: Start and enable Docker
+      systemd: { name: docker, enabled: true, state: started }
+
+    - name: Install AWS CLI v2
+      shell: |
+        curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip
+        unzip -o /tmp/awscliv2.zip -d /tmp
+        /tmp/aws/install --update
+      args: { creates: /usr/local/bin/aws }
+
+    - name: Install Trivy
+      shell: |
+        wget -qO /tmp/trivy.deb \
+          https://github.com/aquasecurity/trivy/releases/download/v{{ trivy_version }}/trivy_{{ trivy_version }}_Linux-64bit.deb
+        dpkg -i /tmp/trivy.deb
+      args: { creates: /usr/bin/trivy }
+
+    - name: Install kubectl
+      get_url:
+        url: https://dl.k8s.io/release/v1.29.0/bin/linux/amd64/kubectl
+        dest: /usr/local/bin/kubectl
+        mode: "0755"
+
+    - name: Install kustomize
+      shell: |
+        curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+        mv kustomize /usr/local/bin/
+      args: { creates: /usr/local/bin/kustomize }
+
+    - name: Print Jenkins initial admin password location
+      debug:
+        msg: "Get initial password: sudo cat /var/lib/jenkins/secrets/initialAdminPassword"

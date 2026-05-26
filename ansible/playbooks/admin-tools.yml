@@ -1,0 +1,63 @@
+---
+# Installs all tools needed to manage the EKS cluster
+- name: Bootstrap admin workstation
+  hosts: admin
+  become: true
+  vars:
+    terraform_version: "1.7.5"
+    helm_version: "3.14.0"
+    argocd_cli_version: "2.10.1"
+  tasks:
+    - name: Install base packages
+      apt:
+        name: [curl, unzip, git, jq, wget]
+        state: present
+        update_cache: true
+
+    - name: Install AWS CLI v2
+      shell: |
+        curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip
+        unzip -o /tmp/awscliv2.zip -d /tmp
+        /tmp/aws/install --update
+      args: { creates: /usr/local/bin/aws }
+
+    - name: Install kubectl
+      get_url:
+        url: https://dl.k8s.io/release/v1.29.0/bin/linux/amd64/kubectl
+        dest: /usr/local/bin/kubectl
+        mode: "0755"
+
+    - name: Install Helm
+      shell: |
+        curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | \
+          DESIRED_VERSION=v{{ helm_version }} bash
+      args: { creates: /usr/local/bin/helm }
+
+    - name: Install Terraform
+      unarchive:
+        src: "https://releases.hashicorp.com/terraform/{{ terraform_version }}/terraform_{{ terraform_version }}_linux_amd64.zip"
+        dest: /usr/local/bin
+        remote_src: true
+        mode: "0755"
+
+    - name: Install kustomize
+      shell: |
+        curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+        mv kustomize /usr/local/bin/
+      args: { creates: /usr/local/bin/kustomize }
+
+    - name: Install Argo CD CLI
+      get_url:
+        url: "https://github.com/argoproj/argo-cd/releases/download/v{{ argocd_cli_version }}/argocd-linux-amd64"
+        dest: /usr/local/bin/argocd
+        mode: "0755"
+
+    - name: Verify tools
+      command: "{{ item }}"
+      loop:
+        - aws --version
+        - kubectl version --client --short
+        - helm version --short
+        - terraform version
+        - argocd version --client --short
+      ignore_errors: true
