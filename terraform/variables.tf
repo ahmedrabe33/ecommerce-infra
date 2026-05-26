@@ -78,7 +78,7 @@ variable "baseline_node_min" {
 variable "baseline_node_max" {
   description = "Maximum node count for baseline MNG"
   type        = number
-  default     = 6
+  default     = 
 }
 
 variable "ecr_services" {
