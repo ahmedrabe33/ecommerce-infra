@@ -58,32 +58,37 @@ variable "public_subnet_cidrs" {
 }
 
 variable "baseline_node_instance_type" {
-  description = "Instance type for the baseline Managed Node Group (system workloads)"
+  description = "Instance type for the baseline Managed Node Group that runs system workloads only"
   type        = string
   default     = "m5.large"
 }
 
+# Fixed baseline Managed Node Group.
+# This is NOT used for application autoscaling.
+# It only keeps stable system capacity across 3 AZs.
+# Karpenter will handle dynamic scaling for application workloads.
 variable "baseline_node_desired" {
-  description = "Desired node count for baseline MNG"
+  description = "Desired node count for fixed baseline Managed Node Group"
   type        = number
   default     = 3
 }
 
 variable "baseline_node_min" {
-  description = "Minimum node count for baseline MNG"
+  description = "Minimum node count for fixed baseline Managed Node Group"
   type        = number
   default     = 3
 }
 
 variable "baseline_node_max" {
-  description = "Maximum node count for baseline MNG"
+  description = "Maximum node count for fixed baseline Managed Node Group"
   type        = number
-  default     = 
+  default     = 3
 }
 
 variable "ecr_services" {
   description = "List of microservices — one ECR repository created per service"
   type        = list(string)
+
   default = [
     "ecommerce-frontend",
     "ecommerce-admin",
